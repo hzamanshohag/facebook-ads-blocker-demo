@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Facebook Ads Blocker — Demo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+
+  <body class="bg-gray-50 min-h-screen flex items-center justify-center p-6">
+    <div class="max-w-3xl w-full bg-white rounded-2xl shadow-lg p-6">
+      <h1 class="text-3xl font-bold text-blue-400 mb-4">
+        🧱 Facebook Ads Blocker
+      </h1>
+
+      <div class="space-x-4 mb-4">
+        <button
+          id="startBtn"
+          class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg shadow"
+        >
+          ▶ Start Blocking
+        </button>
+        <button
+          id="stopBtn"
+          class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg shadow"
+        >
+          ⏹ Stop Blocking
+        </button>
+        <button
+          id="demoConsole"
+          class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg shadow"
+        >
+          📋 Copy Bookmarklet
+        </button>
+      </div>
+
+      <p id="statusText" class="text-gray-500 mb-2">Status: Not running</p>
+      <div
+        id="log"
+        class="h-64 overflow-y-auto bg-gray-100 p-2 text-sm rounded"
+      ></div>
+    </div>
+
+    <script>
+      /******************************************************************
+       * Facebook Ads Blocker (client-side, demo)
+       * Run this inside facebook.com console or as bookmarklet.
+       ******************************************************************/
+      let observer = null;
+      let running = false;
+
+      // Hide matched ad posts
+      function hideElement(el) {
+        if (!el || el._fbAdBlocked) return;
+        el._fbAdBlocked = true;
+        el.style.transition =
+          "opacity .25s, height .25s, margin .25s, padding .25s";
+        el.style.opacity = "0";
+        el.style.pointerEvents = "none";
+        setTimeout(() => (el.style.display = "none"), 260);
+        log(`Hid ad element: <${el.tagName.toLowerCase()}>`);
+      }
+
+      // Detect likely ad nodes
+      function looksLikeAd(node) {
+        if (!node || node.nodeType !== Node.ELEMENT_NODE) return false;
+        try {
+          const text = (node.innerText || "").toLowerCase().trim();
+          const label = node.getAttribute("aria-label") || "";
+          const testid = node.getAttribute("data-testid") || "";
+          if (
+            /sponsored/.test(text) ||
+            /suggested for you/.test(text) ||
+            /ads|ad|sponsored/i.test(label) ||
+            /placement|adcontainer/i.test(testid)
+          )
+            return true;
+        } catch (e) {}
+        return false;
+      }
+
+      const targetSelectors = [
+        '[aria-label="Sponsored"]',
+        'a[aria-label*="Sponsored"]',
+        'div[data-pagelet^="Feed"] [data-testid*="ad"]',
+        'div[data-testid*="placement"]',
+        'div[role="complementary"]',
+        'div[data-pagelet^="RightRail"]',
+      ];
+
+      // Scans and hides detected ads
+      function scanAndHide(root = document) {
+        try {
+          targetSelectors.forEach((sel) => {
+            root.querySelectorAll(sel).forEach((el) => {
+              if (looksLikeAd(el)) hideElement(el);
+            });
+          });
+          const articles = root.querySelectorAll(
+            '[role="article"], article, section'
+          );
+          for (const node of articles) {
+            if (node._fbScanned) continue;
+            node._fbScanned = true;
+            const text = (node.innerText || "").toLowerCase();
+            if (/sponsored|suggested for you/.test(text)) hideElement(node);
+          }
+        } catch (e) {}
+      }
+
+      // Observe new DOM content
+      function onMutations(mutations) {
+        for (const m of mutations) {
+          m.addedNodes?.forEach((n) => {
+            if (n.nodeType !== 1) return;
+            if (looksLikeAd(n)) hideElement(n);
+            else scanAndHide(n);
+          });
+        }
+      }
+
+      // Start blocking
+      function startBlocking() {
+        if (running) return;
+        running = true;
+        document.getElementById("statusText").textContent = "Status: Running";
+        log("Starting Facebook ads blocker...");
+        scanAndHide(document);
+        observer = new MutationObserver(onMutations);
+        observer.observe(document.documentElement, {
+          childList: true,
+          subtree: true,
+        });
+        window._fbAdInterval = setInterval(() => scanAndHide(document), 2500);
+        log("Blocker active. Watching feed for sponsored posts...");
+      }
+
+      // Stop blocking
+      function stopBlocking() {
+        if (!running) return;
+        running = false;
+        if (observer) observer.disconnect();
+        if (window._fbAdInterval) clearInterval(window._fbAdInterval);
+        document.getElementById("statusText").textContent = "Status: Stopped";
+        log("Stopped Facebook ads blocker.");
+      }
+
+      // Log utility
+      function log(msg) {
+        const box = document.getElementById("log");
+        const time = new Date().toLocaleTimeString();
+        box.innerHTML =
+          `<div class="text-gray-700">[${time}] ${msg}</div>` + box.innerHTML;
+      }
+
+      // Create bookmarklet version
+      function createBookmarklet() {
+        const core = `(${startBlocking.toString()})();`;
+        return "javascript:" + encodeURIComponent(core);
+      }
+
+      // Handlers
+      document.getElementById("startBtn").onclick = startBlocking;
+      document.getElementById("stopBtn").onclick = stopBlocking;
+      document.getElementById("demoConsole").onclick = () => {
+        const bm = createBookmarklet();
+        navigator.clipboard.writeText(bm).then(() => {
+          alert(
+            "Bookmarklet copied! Paste it into your browser bookmarks URL field."
+          );
+        });
+      };
+
+      log("Ready. Click Start Blocking to begin.");
+    </script>
+    <!-- Link external JS -->
+    <script src="content.js" defer></script>
+  </body>
+</html>
