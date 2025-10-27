@@ -32,5 +32,5 @@ This is a front-end demo, so no installation is required. Simply:
 1. Clone the repository:
 
 ```bash
-git clone https://github.com/hzamanshohag/facebook-ads-blocker.git
+git clone https://github.com/hzamanshohag/facebook-ads-blocker-demo.git
 cd facebook-ads-blocker
